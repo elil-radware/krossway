@@ -25,7 +25,7 @@ class AWSEnv(object):
     SERVICE_NAME_CONF = 'hackazon'
     NGINX_CONF = 'nginx.conf'
     NGINX_MAIN_CONF_PATH = Path('/etc/nginx', NGINX_CONF)
-    SERVICE_CONF_PATH = Path('/etc/nginx/sites-available', SERVICE_NAME_CONF)
+    SERVICE_CONF_PATH = Path('/etc/nginx/sites-enabled', SERVICE_NAME_CONF)
 
 app_config = {
     'development': LocalEnv,

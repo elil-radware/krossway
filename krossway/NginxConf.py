@@ -54,18 +54,29 @@ class NginxConf():
         config = payload.get('config', None)
 
         if config:
-            if not config.get('errors'):
-                self._find_server_directive(config.get('parsed'))
+            if not config[0].get('errors'):
+                server_parsed = self._find_file_conf(self.service_conf_path, config[0].get('parsed'))
 
-
+                self.log.info(f'server parsed: {pprint.pprint(server_parsed)}')
+                self._find_location_directive_in_blocks(name, server_parsed)
 
         self.log.info(f'{pprint.pprint(payload)}')
 
-    def _find_server_directive(self, name, parsed: list):
+
+    def _find_file_conf(self, filename, parsed: list):
+        self.log.info(pprint.pprint(f'looking for {filename} in the parsed config blocks'))
+        for conf in parsed:
+            if conf.get('file') == filename:
+                self.log.info(f'found {filename} conf block')
+                return conf.get('parsed')
+
+
+    def _find_location_directive_in_blocks(self, name, directives: list):
         self.log.info(f'looking for {name} in the parsed config blocks')
-        for directive in parsed:
-            if directive.get('server'):
-                self.log.info(f'in {directive} found server')
+        for directive in directives:
+            if directive.get('location'):
+                if name in directive.get('args'):
+                    self.log.info(f'in {pprint.pprint(directive)} found server')
 
     def passive_end_point(self, name):
         service_end_point = crossplane.parse(self.service_conf_path)
