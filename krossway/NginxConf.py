@@ -55,19 +55,20 @@ class NginxConf():
 
         if config:
             if not config[0].get('errors'):
-                server_parsed = self._find_file_conf(self.service_conf_path, config[0].get('parsed'))
+                server_parsed = self._find_file_conf(self.service_conf_path, config)
 
                 self.log.info(f'server parsed: {pprint.pprint(server_parsed)}')
-                self._find_location_directive_in_blocks(name, server_parsed)
+                if server_parsed:
+                    self._find_location_directive_in_blocks(name, server_parsed)
 
         self.log.info(f'{pprint.pprint(payload)}')
 
 
-    def _find_file_conf(self, filename, parsed: list):
-        self.log.info(pprint.pprint(f'looking for {filename} in the parsed config blocks'))
-        for conf in parsed:
+    def _find_file_conf(self, filename, configs: list):
+        self.log.error(f'looking for {filename} in the config blocks')
+        for conf in configs:
             if conf.get('file') == filename:
-                self.log.info(f'found {filename} conf block')
+                self.log.error(f'found {filename} conf block')
                 return conf.get('parsed')
 
 
