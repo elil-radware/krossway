@@ -18,7 +18,7 @@ def create_app():
 
     krossway_app.config.from_object(app_config[env_name])
 
-    krossway_app.logger.debug(f'Config: {krossway_app.config}')
+    krossway_app.logger.error(f'Config: {krossway_app.config}')
 
     krossway_app.app_context().push()
     krossway_app.url_map.strict_slashes = False

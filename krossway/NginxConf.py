@@ -1,4 +1,5 @@
 import crossplane
+from pathlib import Path
 from flask import g
 # import logging
 import pprint
@@ -30,6 +31,19 @@ import pprint
     }
 """
 
+bypass_directive = [{
+    "directive": "events",
+    "args": [],
+    "block": [{
+        "directive": "worker_connections",
+        "args": ["1024"]
+    }]
+}]
+
+active_directive = []
+
+passive_directive = []
+
 
 class NginxConf():
 
@@ -57,27 +71,41 @@ class NginxConf():
             if not config[0].get('errors'):
                 server_parsed = self._find_file_conf(self.service_conf_path, config)
 
-                self.log.info(f'server parsed: {pprint.pprint(server_parsed)}')
+                # self.log.info(f'server parsed: {pprint.pprint(server_parsed)}')
                 if server_parsed:
-                    self._find_location_directive_in_blocks(name, server_parsed)
+                    # (self._find_location_directive_in_blocks(name, server) for server in self._find_server_directive(name, server_parsed))
+                    self._find_server_directive(name, server_parsed)
+        # self.log.info(f'{pprint.pprint(payload)}')
 
-        self.log.info(f'{pprint.pprint(payload)}')
-
-
-    def _find_file_conf(self, filename, configs: list):
-        self.log.error(f'looking for {filename} in the config blocks')
+    def _find_file_conf(self, filename: Path, configs: list):
+        self.log.debug(f'looking for {filename} in the config blocks')
         for conf in configs:
-            if conf.get('file') == filename:
+            if filename.samefile(conf.get('file')):
                 self.log.error(f'found {filename} conf block')
                 return conf.get('parsed')
 
+    def _find_server_directive(self, name, directives: list):
+        self.log.error(f'looking for server directive')
+
+        for directive in directives:
+            # self.log.error(f"directives: {pprint.pprint(directive)} ")
+
+            if directive.get('directive') == 'server':
+                self._find_location_directive_in_blocks(name, directive.get('block'))
+
 
     def _find_location_directive_in_blocks(self, name, directives: list):
-        self.log.info(f'looking for {name} in the parsed config blocks')
+        self.log.error(f'looking for {name} in the parsed config blocks')
+
         for directive in directives:
-            if directive.get('location'):
+            # self.log.error(f"directives: {pprint.pprint(directive)} ")
+            # self.log.error(f"if args: {directive.get('location')} == name")
+
+            if directive.get('directive') == 'location':
+                self.log.error(f"if args: {directive.get('args')} == {name}")
+
                 if name in directive.get('args'):
-                    self.log.info(f'in {pprint.pprint(directive)} found server')
+                    self.log.error(f'in {directive} found server')
 
     def passive_end_point(self, name):
         service_end_point = crossplane.parse(self.service_conf_path)
