@@ -47,16 +47,25 @@ class NginxConf():
         app.logger.info(f'self: {self} ')
 
     def parse_and_find_end_point(self, name):
-        service_end_point_payload = crossplane.parse(self.nginx_conf_file_path)
-        if service_end_point_payload.get('error'):
-            return 400, "bad parsing"
+        payload = crossplane.parse(self.nginx_conf_file_path)
+        if payload.get('error'):
+            return 400, payload.get('error')
 
-        self.log.info(f'{pprint.pprint(service_end_point_payload)}')
+        config = payload.get('config', None)
+
+        if config:
+            if not config.get('errors'):
+                self._find_server_directive(config.get('parsed'))
 
 
 
+        self.log.info(f'{pprint.pprint(payload)}')
 
-
+    def _find_server_directive(self, name, parsed: list):
+        self.log.info(f'looking for {name} in the parsed config blocks')
+        for directive in parsed:
+            if directive.get('server'):
+                self.log.info(f'in {directive} found server')
 
     def passive_end_point(self, name):
         service_end_point = crossplane.parse(self.service_conf_path)
