@@ -1,0 +1,11 @@
+Flask
+Werkzeug
+Click
+setuptools>=21.0.0
+Werkzeug
+gevent
+Jinja2
+Mako
+MarkupSafe
+six
+crossplane
