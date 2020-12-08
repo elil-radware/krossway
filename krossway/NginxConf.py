@@ -138,7 +138,7 @@ class NginxConf():
                         self.log.error(f'matched directive {directive}')
                         self.log.error(f'action: {action}')
 
-                        target_directive_index = directive.index(directive)
+                        target_directive_index = directives.index(directive)
                         new_directive = self._generate_directive(directive, name, action)
                         self.log.error(f'new directive {new_directive}')
 
