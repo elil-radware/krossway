@@ -51,8 +51,10 @@ passive_location_directive_template = {'directive': 'location',
                                        'args': [],
                                        'block': [
                                            {'directive': 'proxy_intercept_errors', 'args': ['on']},
-                                           {'directive': 'error_page', 'args': ['403', '=', '@hackazon_backend']},
                                            {'directive': 'error_page', 'args': ['400', '=', '@hackazon_backend']},
+                                           {'directive': 'error_page', 'args': ['403', '=', '@hackazon_backend']},
+                                           {'directive': 'error_page', 'args': ['429', '=', '@hackazon_backend']},
+                                           {'directive': 'error_page', 'args': ['500', '=', '@hackazon_backend']},
                                            {'directive': 'proxy_pass', 'args': ['https://sj4tt7tht4.execute-api.us-east-1.amazonaws.com/v1$request_uri']}
                                        ]
                                        }
