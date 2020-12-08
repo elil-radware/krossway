@@ -3,8 +3,7 @@ import subprocess
 import crossplane
 from pathlib import Path
 import copy
-from flask import g
-# import logging
+import logging
 import pprint
 
 # log = logging.getLogger(__name__)
@@ -69,6 +68,8 @@ active_location_directive_template = {'directive': 'location',
                                       }
 
 # DUMMY_URI = '/krossway/dummy'
+log = logging.getLogger(__name__)
+
 
 class NginxConf():
 
@@ -82,7 +83,7 @@ class NginxConf():
         self.service_conf_path = app.config.get('SERVICE_CONF_PATH')
         self.service_availble_conf_path = app.config.get('SERVICE_AVAILABLE_CONF_PATH')
 
-        self.log = app.logger
+        # log = app.logger
 
         app.logger.info(f'self: {self} ')
 
@@ -90,7 +91,7 @@ class NginxConf():
         payload = crossplane.parse(self.nginx_conf_file_path)
 
         if payload.get('error'):
-            self.log.error(f"Parsed config error: {payload.get('error')}")
+            log.error(f"Parsed config error: {payload.get('error')}")
 
             return 400, payload.get('error')
 
@@ -108,25 +109,25 @@ class NginxConf():
                         self._generate_new_config_payload(config)
 
     def _find_file_conf(self, filename: Path, configs: list):
-        self.log.debug(f'looking for {filename} in the config blocks')
+        log.info(f'looking for {filename} in the config blocks')
         for conf in configs:
             if filename.samefile(conf.get('file')):
-                self.log.error(f'found {filename} conf block')
+                log.error(f'found {filename} conf block')
                 return conf.get('parsed')
 
     def _find_server_directive(self, name, directives: list):
-        self.log.error(f'looking for server directive')
+        log.info(f'looking for server directive')
 
         for directive in directives:
-            # self.log.error(f"directives: {pprint.pprint(directive)} ")
+            # log.error(f"directives: {pprint.pprint(directive)} ")
 
             if directive.get('directive') == 'server':
-                self.log.error(f'found server directive')
+                log.info(f'found server directive')
                 return directive
         return None
 
     def _find_location_directive_in_blocks(self, name, directives: list, action, create_none_existing):
-        self.log.error(f'looking for {name} in the parsed config blocks')
+        log.debug(f'looking for {name} in the parsed config blocks')
         new_directive = None
         target_directive_index = -1
 
@@ -134,17 +135,17 @@ class NginxConf():
             for directive in directives:
                 if directive.get('directive') == 'location':
                     if name in directive.get('args'):
-                        self.log.error(f'found matching location {name}')
-                        self.log.error(f'matched directive {directive}')
-                        self.log.error(f'action: {action}')
+                        log.debug(f'found matching location {name}')
+                        # log.error(f'matched directive {directive}')
+                        log.debug(f'action: {action}')
 
                         target_directive_index = directives.index(directive)
                         new_directive = self._generate_directive(directive, name, action)
-                        self.log.error(f'new directive {new_directive}')
+                        # log.error(f'new directive {new_directive}')
 
             #if we didn't find any matching location and create new flag is set
             if target_directive_index == -1 and create_none_existing:
-                self.log.error(f'didnt find matching directive creating new one')
+                log.info(f'didnt find matching directive creating new one')
 
                 new_directive = self._generate_directive(empty_location_directive_template, name, action)
                 directives.append(new_directive)
@@ -190,35 +191,35 @@ class NginxConf():
             return self.bypass_end_point(original_directive, name)
 
         else:
-            self.log.error(f'bad action {action}')
+            log.error(f'bad action {action}')
             return None
 
 
     def _generate_new_config_payload(self, configs):
 
         service_file_directive = self._find_file_conf(self.service_conf_path, configs)
-        self.log.error(f'service_file_directive config {service_file_directive}')
+        # log.error(f'service_file_directive config {service_file_directive}')
         try:
             post_build = crossplane.build(service_file_directive, tabs=True)
             self._dump_config_to_nginx_conf_file(post_build, self.service_availble_conf_path)
             self._reload_nginx()
         except Exception as ex:
-            self.log.error(f'Config build failed')
-            self.log.exception(f'{ex}')
+            log.error(f'Config build failed')
+            log.exception(f'{ex}')
             return False
 
-        self.log.error(f'Service Config after build:\n{post_build}')
+        log.debug(f'Service Config after build:\n{post_build}')
 
     def _dump_config_to_nginx_conf_file(self, conf_str, output_file: Path):
 
         with output_file.open(mode='w+') as fio:
-            self.log.error(f'writing new config to {output_file}')
+            log.info(f'writing new config to {output_file}')
 
             fio.write(conf_str)
 
     def _reload_nginx(self):
         output = subprocess.check_output(f'sudo nginx -s reload', shell=True)
-        self.log.error(f'reload nginx output {output}')
+        log.info(f'reload nginx output {output}')
 
     def __repr__(self):
         return f'service_name: {self.service_name} ' \

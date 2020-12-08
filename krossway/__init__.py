@@ -2,12 +2,21 @@ from flask import Flask
 import click
 import os
 from krossway.config import app_config
-from krossway.NginxConf import NginxConf
-from pathlib import Path
+from krossway.nginxConf import NginxConf
+import logging
+
 URL_PREFIX = '/krossway'
 
 nginxConf = NginxConf()
 
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
+
+# create console handler and set level to debug
+ch = logging.StreamHandler()
+
+ch.setFormatter(logging.Formatter(f"%(asctime)s [%(levelname)s] %(name)s - %(message)s"))
+log.addHandler(ch)
 
 def create_app():
     env_name = os.getenv('FLASK_ENV', default='local')
@@ -46,7 +55,7 @@ def register_blueprints_for_app(app):
     :return: none
     """
 
-    from krossway.EndPoints import krossway_endpoint_handler
+    from krossway.endPoints import krossway_endpoint_handler
 
     # register the following blueprints with the given URL prefixes
     app.register_blueprint(krossway_endpoint_handler, url_prefix=f'{URL_PREFIX}')
