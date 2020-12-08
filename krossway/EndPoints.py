@@ -1,5 +1,7 @@
 from flask import Blueprint, request, current_app
 from krossway import nginxConf
+from pathlib import Path
+
 import logging
 import json
 
@@ -13,7 +15,6 @@ class EndPoints():
     def __init__(self):
         log.info(f'Init end points')
 
-
     @staticmethod
     @krossway_endpoint_handler.route('/endpoints', methods=['GET'])
     def list_endpoints():
@@ -23,10 +24,12 @@ class EndPoints():
     @krossway_endpoint_handler.route('/endpoints', methods=['PUT'])
     def update_custom_endpoint_state():
         resource_name = request.args.get('resource')
+        action = request.args.get('action')
+
         if resource_name:
-            nginxConf.parse_and_find_end_point(resource_name)
+            target_location_conf = nginxConf.parse_and_find_end_point(resource_name, action, True)
         else:
-            return f"bad"
+            return f"Something bad happened"
 
         return f"Update {request.args.get('resource')} action {request.args.get('action')}"
 
@@ -38,4 +41,7 @@ class EndPoints():
     @staticmethod
     @krossway_endpoint_handler.route('/endpoints/root', methods=['PUT'])
     def update_root_endpoint_state():
+        action = request.args.get('action')
+        target_location_conf = nginxConf.parse_and_find_end_point(Path.home().root, action)
+
         return f"Update root action {request.args.get('action')}"

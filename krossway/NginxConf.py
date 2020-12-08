@@ -1,5 +1,8 @@
+import subprocess
+
 import crossplane
 from pathlib import Path
+import copy
 from flask import g
 # import logging
 import pprint
@@ -30,20 +33,40 @@ import pprint
         "block": Array       // Array of Directive Objects (included iff this is a block)
     }
 """
+empty_location_directive_template = {'directive': 'location',
+                                     'args': [],
+                                     'block': []
+                                     }
 
-bypass_directive = [{
-    "directive": "events",
-    "args": [],
-    "block": [{
-        "directive": "worker_connections",
-        "args": ["1024"]
-    }]
-}]
+bypass_location_directive_template = {'directive': 'location',
+                                      'args': [],
+                                      'block': [
+                                          {'directive': 'proxy_pass',
+                                           'args': ['http://hackazon_server']
+                                           }
+                                      ]
+                                      }
 
-active_directive = []
+passive_location_directive_template = {'directive': 'location',
+                                       'args': [],
+                                       'block': [
+                                           {'directive': 'proxy_intercept_errors', 'args': ['on']},
+                                           {'directive': 'error_page', 'args': ['403', '=', '@hackazon_backend']},
+                                           {'directive': 'error_page', 'args': ['400', '=', '@hackazon_backend']},
+                                           {'directive': 'proxy_pass', 'args': ['https://sj4tt7tht4.execute-api.us-east-1.amazonaws.com/v1$request_uri']}
+                                       ]
+                                       }
 
-passive_directive = []
+active_location_directive_template = {'directive': 'location',
+                                      'args': [],
+                                      'block': [
+                                          {'directive': 'proxy_pass',
+                                           'args': ['https://sj4tt7tht4.execute-api.us-east-1.amazonaws.com/v1$request_uri']
+                                           }
+                                      ]
+                                      }
 
+# DUMMY_URI = '/krossway/dummy'
 
 class NginxConf():
 
@@ -55,14 +78,18 @@ class NginxConf():
         self.service_name = app.config.get('SERVICE_NAME')
         self.nginx_conf_file_path = app.config.get('NGINX_MAIN_CONF_PATH')
         self.service_conf_path = app.config.get('SERVICE_CONF_PATH')
+        self.service_availble_conf_path = app.config.get('SERVICE_AVAILABLE_CONF_PATH')
 
         self.log = app.logger
 
         app.logger.info(f'self: {self} ')
 
-    def parse_and_find_end_point(self, name):
+    def parse_and_find_end_point(self, name, action=None, create_none_existing=False):
         payload = crossplane.parse(self.nginx_conf_file_path)
+
         if payload.get('error'):
+            self.log.error(f"Parsed config error: {payload.get('error')}")
+
             return 400, payload.get('error')
 
         config = payload.get('config', None)
@@ -71,11 +98,12 @@ class NginxConf():
             if not config[0].get('errors'):
                 server_parsed = self._find_file_conf(self.service_conf_path, config)
 
-                # self.log.info(f'server parsed: {pprint.pprint(server_parsed)}')
                 if server_parsed:
-                    # (self._find_location_directive_in_blocks(name, server) for server in self._find_server_directive(name, server_parsed))
-                    self._find_server_directive(name, server_parsed)
-        # self.log.info(f'{pprint.pprint(payload)}')
+                    server_directive = self._find_server_directive(name, server_parsed)
+
+                    new_directive = self._find_location_directive_in_blocks(name, server_directive.get('block'), action, create_none_existing)
+                    if new_directive:
+                        self._generate_new_config_payload(config)
 
     def _find_file_conf(self, filename: Path, configs: list):
         self.log.debug(f'looking for {filename} in the config blocks')
@@ -91,31 +119,104 @@ class NginxConf():
             # self.log.error(f"directives: {pprint.pprint(directive)} ")
 
             if directive.get('directive') == 'server':
-                self._find_location_directive_in_blocks(name, directive.get('block'))
+                self.log.error(f'found server directive')
+                return directive
+        return None
 
-
-    def _find_location_directive_in_blocks(self, name, directives: list):
+    def _find_location_directive_in_blocks(self, name, directives: list, action, create_none_existing):
         self.log.error(f'looking for {name} in the parsed config blocks')
+        new_directive = None
+        target_directive_index = -1
 
-        for directive in directives:
-            # self.log.error(f"directives: {pprint.pprint(directive)} ")
-            # self.log.error(f"if args: {directive.get('location')} == name")
+        if directives:
+            for directive in directives:
+                if directive.get('directive') == 'location':
+                    if name in directive.get('args'):
+                        self.log.error(f'found matching location {name}')
+                        self.log.error(f'matched directive {directive}')
+                        self.log.error(f'action: {action}')
 
-            if directive.get('directive') == 'location':
-                self.log.error(f"if args: {directive.get('args')} == {name}")
+                        target_directive_index = directive.index(directive)
+                        new_directive = self._generate_directive(directive, name, action)
+                        self.log.error(f'new directive {new_directive}')
 
-                if name in directive.get('args'):
-                    self.log.error(f'in {directive} found server')
+            #if we didn't find any matching location and create new flag is set
+            if target_directive_index == -1 and create_none_existing:
+                self.log.error(f'didnt find matching directive creating new one')
 
-    def passive_end_point(self, name):
-        service_end_point = crossplane.parse(self.service_conf_path)
-        pass
+                new_directive = self._generate_directive(empty_location_directive_template, name, action)
+                directives.append(new_directive)
 
-    def active_end_point(self, name):
-        pass
 
-    def bypass_end_point(self, name):
-        pass
+            # Update the original config with the new directive
+            if target_directive_index != -1:
+                directives[target_directive_index] = new_directive
+
+        return new_directive
+
+
+
+    def passive_end_point(self, directive, name):
+        new_directive = copy.deepcopy(passive_location_directive_template)
+        args_list: list = directive.get('args').copy()
+        #for directive with options before the endpoint it will not work
+        new_directive['args'] = list(set(args_list) | {name})
+        return new_directive
+
+    def active_end_point(self, directive, name):
+        new_directive = copy.deepcopy(active_location_directive_template)
+        args_list: list = directive.get('args').copy()
+        #for directive with options before the endpoint it will not work
+        new_directive['args'] = list(set(args_list) | {name})
+        return new_directive
+
+    def bypass_end_point(self, directive, name):
+        new_directive = copy.deepcopy(bypass_location_directive_template)
+        args_list: list = directive.get('args').copy()
+        #for directive with options before the endpoint it will not work
+        new_directive['args'] = list(set(args_list) | {name})
+        return new_directive
+
+    def _generate_directive(self, original_directive, name, action):
+        if action == 'passive':
+            return self.passive_end_point(original_directive, name)
+
+        elif action == 'active':
+            return self.active_end_point(original_directive, name)
+
+        elif action == 'bypass':
+            return self.bypass_end_point(original_directive, name)
+
+        else:
+            self.log.error(f'bad action {action}')
+            return None
+
+
+    def _generate_new_config_payload(self, configs):
+
+        service_file_directive = self._find_file_conf(self.service_conf_path, configs)
+        self.log.error(f'service_file_directive config {service_file_directive}')
+        try:
+            post_build = crossplane.build(service_file_directive, tabs=True)
+            self._dump_config_to_nginx_conf_file(post_build, self.service_availble_conf_path)
+            self._reload_nginx()
+        except Exception as ex:
+            self.log.error(f'Config build failed')
+            self.log.exception(f'{ex}')
+            return False
+
+        self.log.error(f'Service Config after build:\n{post_build}')
+
+    def _dump_config_to_nginx_conf_file(self, conf_str, output_file: Path):
+
+        with output_file.open(mode='w+') as fio:
+            self.log.error(f'writing new config to {output_file}')
+
+            fio.write(conf_str)
+
+    def _reload_nginx(self):
+        output = subprocess.check_output(f'sudo nginx -s reload', shell=True)
+        self.log.error(f'reload nginx output {output}')
 
     def __repr__(self):
         return f'service_name: {self.service_name} ' \

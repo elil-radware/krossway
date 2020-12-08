@@ -18,14 +18,12 @@ def create_app():
 
     krossway_app.config.from_object(app_config[env_name])
 
-    krossway_app.logger.error(f'Config: {krossway_app.config}')
+    krossway_app.logger.info(f'Config: {krossway_app.config}')
 
     krossway_app.app_context().push()
     krossway_app.url_map.strict_slashes = False
 
     register_blueprints_for_app(krossway_app)
-
-    # current_conf = krossway_app.config
 
     nginxConf.init_app(krossway_app)
 
